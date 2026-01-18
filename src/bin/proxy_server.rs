@@ -18,6 +18,9 @@ use regex::Regex;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+#[path = "../json_repair.rs"]
+mod json_repair;
+use json_repair::repair_json_snippet;
 
 const TOOL_SYSTEM_PROMPT: &str = r#"
 ### TOOL USE INSTRUCTIONS
@@ -403,7 +406,15 @@ async fn forward_and_handle(
     if let Some(caps) = state.tool_regex.captures(&content) {
         let raw_json = caps.get(1).map(|m| m.as_str()).unwrap_or_default().trim();
 
-        let repaired_str = raw_json.to_string();
+        let repaired_str = match repair_json_snippet(raw_json) {
+            Ok(clean) => clean,
+            Err(e) => {
+                push_retry_messages(messages, content, format!("Output is not valid JSON: {e}"));
+                req_body["messages"] =
+                    serde_json::to_value(&messages).unwrap_or_else(|_| Value::Array(vec![]));
+                return Err(format!("Attempt {attempt} repair failed: {e}"));
+            }
+        };
 
         let repaired: Value = match serde_json::from_str(&repaired_str)
             .or_else(|_| json5::from_str(&repaired_str))
