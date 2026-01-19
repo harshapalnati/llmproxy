@@ -1,24 +1,43 @@
 Rust reliability proxy for tool calls (RAPH loop) sitting in front of Positron.
 
-## Binary
-- `proxy_server`: injects XML tool instructions, repairs/validates tool calls, retries, and rewrites responses into OpenAI-style `tool_calls`. Supports bypass via header/URL.
+## Prereqs
+- Rust toolchain (stable) with `cargo`
+- Optional: Python 3.10+ for the benchmark scripts
 
-## Config
-- `POSITRON_URL` (default `http://localhost:8080/v1`)
-- `POSITRON_KEY` (default `sk-placeholder`)
-- `MAX_RETRIES` (default `3`)
-- `PROXY_PORT` (default `9000`)
-
-## Bypass switch
-- Header: `x-raph-mode: off` (or `false`) disables reliability and forwards directly (streams honored).
-- URL: `?use_raph=false` does the same for raw HTTP requests.
-
-## Run
+## Run the proxy
 ```bash
+# in repo root
 cargo run --bin proxy_server
 ```
 
-Point your OpenAI-compatible client at `http://localhost:9000/v1`. To bypass logic: add `x-raph-mode: off` header or `?use_raph=false` query param. Default is reliability ON.
+Environment knobs (can go in `.env`):
+- `POSITRON_URL` (default `http://localhost:8080/v1`)
+- `POSITRON_KEY` (default `sk-placeholder`)
+- `MAX_RETRIES` (default `3`)
+- `UPSTREAM_TIMEOUT_SECS` (default `20`) timeout per Positron attempt (connect + full request)
+- `PROXY_PORT` (default `9000`)
+
+Send OpenAI-compatible traffic to `http://localhost:9000/v1`. To bypass reliability logic: header `x-raph-mode: off` (or `false`) or URL query `?use_raph=false`. Default is reliability ON.
+
+Quick cURL check (replace `sk-...`):
+```bash
+curl -X POST http://localhost:9000/v1/chat/completions \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer sk-placeholder" \
+  -d '{
+    "model": "dummy",
+    "messages": [
+      {"role": "user", "content": "hi"}
+    ]
+  }'
+```
+
+## Binary
+- `proxy_server`: injects XML tool instructions, repairs/validates tool calls, retries, and rewrites responses into OpenAI-style `tool_calls`. Supports bypass via header/URL.
+
+## Dev loop
+- Lint/format: `cargo fmt`
+- Smoke tests: `cargo test` (no suite yet; runs quickly)
 
 ## Benchmark suite (MMLU)
 - Script: `benchmark_suite/run_mmlu.py`

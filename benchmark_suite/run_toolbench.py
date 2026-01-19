@@ -52,6 +52,80 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_docs",
+            "description": "Search internal documentation",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string"},
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "book_flight",
+            "description": "Book a flight for a traveler",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "string"},
+                    "destination": {"type": "string"},
+                    "date": {"type": "string"},
+                },
+                "required": ["origin", "destination", "date"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "schedule_meeting",
+            "description": "Schedule a meeting with participants",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "participants": {"type": "array", "items": {"type": "string"}},
+                    "time": {"type": "string"},
+                },
+                "required": ["participants", "time"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_stock_price",
+            "description": "Get the latest stock price",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "symbol": {"type": "string"},
+                },
+                "required": ["symbol"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "translate_text",
+            "description": "Translate text into a target language",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "text": {"type": "string"},
+                    "target_language": {"type": "string"},
+                },
+                "required": ["text", "target_language"],
+            },
+        },
+    },
 ]
 
 
@@ -63,20 +137,17 @@ class Task:
 
 
 DEFAULT_TASKS = [
+    Task(prompt=f"What is the weather in {city}? Return in celsius.", expected_tool="get_weather", required_args=["location"])
+    for city in [
+        "Tokyo", "New York", "Paris", "London", "Berlin", "Sydney", "Toronto", "San Francisco", "Mumbai", "Singapore",
+        "Seoul", "Mexico City", "Cairo", "Rome", "Madrid", "Buenos Aires", "Johannesburg", "Chicago", "Los Angeles", "Dubai",
+        "Istanbul", "Bangkok", "Moscow", "Sao Paulo", "Lagos"
+    ]
+] + [
     Task(
-        prompt="What is the weather in Tokyo today? Return in celsius.",
-        expected_tool="get_weather",
-        required_args=["location"],
-    ),
-    Task(
-        prompt="Send an email to boss@company.com saying the report is done.",
+        prompt="Send an email to boss@company.com saying the quarterly report is done.",
         expected_tool="send_email",
         required_args=["recipient", "body"],
-    ),
-    Task(
-        prompt="Check the weather in New York and respond in Fahrenheit.",
-        expected_tool="get_weather",
-        required_args=["location"],
     ),
     Task(
         prompt="Email alice@example.com to confirm the 3pm meeting.",
@@ -84,9 +155,189 @@ DEFAULT_TASKS = [
         required_args=["recipient", "body"],
     ),
     Task(
-        prompt="Is it raining in Paris? Use tools if needed.",
-        expected_tool="get_weather",
-        required_args=["location"],
+        prompt="Email bob@example.com that the deployment succeeded.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Send an email to hr@company.com requesting vacation from July 1-5.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email team@company.com with the summary: 'Sprint demo at 4pm'.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email support@example.com about a password reset issue.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Send an email to sales@example.com asking for the updated pricing sheet.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email ceo@company.com to reschedule today's 2pm meeting to 5pm.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email finance@example.com to approve the invoice #1234.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Send an email to ops@example.com that the server maintenance is complete.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email legal@example.com to review the new NDA template.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email hiring@example.com to proceed with the candidate offer.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email marketing@example.com to publish the blog post tomorrow.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email devrel@example.com asking for API rate limit increase.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email logistics@example.com to confirm the shipment tracking number.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email qa@example.com to rerun the regression suite on build 1.2.3.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email design@example.com for the updated logo assets.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email security@example.com to report a phishing attempt.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email billing@example.com to update the payment method.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email training@example.com to enroll in the new compliance course.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email it@example.com to request a new laptop.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email procurement@example.com to reorder office supplies.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email partners@example.com to confirm the partnership meeting next week.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email events@example.com to RSVP for the company offsite.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email hr@example.com to request an employment verification letter.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email payroll@example.com about a missing reimbursement.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email admin@example.com to book a conference room for tomorrow.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email onboarding@example.com to set up a new hire's accounts.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Email travel@example.com to change the flight to Monday.",
+        expected_tool="send_email",
+        required_args=["recipient", "body"],
+    ),
+    Task(
+        prompt="Search the docs for guidance on rotating API keys.",
+        expected_tool="search_docs",
+        required_args=["query"],
+    ),
+    Task(
+        prompt="Find documentation about our S3 backup policy.",
+        expected_tool="search_docs",
+        required_args=["query"],
+    ),
+    Task(
+        prompt="Book a flight from SFO to JFK on March 14 for the CTO.",
+        expected_tool="book_flight",
+        required_args=["origin", "destination", "date"],
+    ),
+    Task(
+        prompt="Book a flight from Toronto to London on May 2 for Sara.",
+        expected_tool="book_flight",
+        required_args=["origin", "destination", "date"],
+    ),
+    Task(
+        prompt="Schedule a meeting with alice@example.com and bob@example.com tomorrow at 3pm.",
+        expected_tool="schedule_meeting",
+        required_args=["participants", "time"],
+    ),
+    Task(
+        prompt="Set up a meeting with product@company.com next Monday at 10am.",
+        expected_tool="schedule_meeting",
+        required_args=["participants", "time"],
+    ),
+    Task(
+        prompt="What's the latest price for AAPL?",
+        expected_tool="get_stock_price",
+        required_args=["symbol"],
+    ),
+    Task(
+        prompt="Get me the current stock price for MSFT.",
+        expected_tool="get_stock_price",
+        required_args=["symbol"],
+    ),
+    Task(
+        prompt="Translate 'Hello, how are you?' into Spanish.",
+        expected_tool="translate_text",
+        required_args=["text", "target_language"],
+    ),
+    Task(
+        prompt="Translate 'Quarterly revenue beat expectations' to French.",
+        expected_tool="translate_text",
+        required_args=["text", "target_language"],
     ),
 ]
 

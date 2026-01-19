@@ -106,6 +106,8 @@ def query_model(prompt: str, mode: Mode, model: str, temperature: float, use_log
     }
     if use_logprobs:
         payload["logprobs"] = {"top_logprobs": 4}
+    payload["max_tokens"] = 1
+    payload["stop"] = ["\n", " ", "\t"]
 
     resp = requests.post(url, json=payload, headers=headers, timeout=60)
     if resp.status_code != 200:

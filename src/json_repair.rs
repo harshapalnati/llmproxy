@@ -28,8 +28,10 @@ pub fn repair_json_snippet(input: &str) -> Result<String, RepairError> {
         s = format!("{{{s}}}");
     }
 
-    // Validate round-trip.
-    serde_json::from_str::<Value>(&s).map_err(|e| RepairError::Parse(e.to_string()))?;
+    // Validate round-trip with JSON, then JSON5 fallback for relaxed formats (e.g., unquoted keys).
+    if serde_json::from_str::<Value>(&s).is_err() {
+        json5::from_str::<Value>(&s).map_err(|e| RepairError::Parse(e.to_string()))?;
+    }
     Ok(s)
 }
 

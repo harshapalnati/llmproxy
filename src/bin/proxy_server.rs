@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     env,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use axum::{
@@ -27,9 +27,13 @@ const TOOL_SYSTEM_PROMPT: &str = r#"
 You have access to the following tools:
 {tool_definitions}
 
-To call a tool, you MUST strictly follow this format:
-1. Wrap your JSON inside <tool_code> tags.
-2. The JSON must contain "name" and "arguments".
+You MUST always call a tool. Never answer with prose or markdown. Respond with exactly one XML block:
+- Wrap valid JSON inside <tool_code> tags (no other text).
+- JSON format: {{ "name": "<tool name>", "arguments": {{ ... }} }}
+- All keys/strings must be double-quoted. No comments, no trailing commas.
+- "name" must be one of the provided tool names above.
+- "arguments" must satisfy the JSON schema for that tool.
+- If unsure, make your best guess and still return a tool call.
 
 Example:
 <tool_code>
@@ -47,6 +51,7 @@ struct AppState {
     max_retries: usize,
     http: Client,
     tool_regex: Regex,
+    upstream_timeout: Duration,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -124,13 +129,25 @@ async fn main() {
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
         .unwrap_or(3);
+    let upstream_timeout = env::var("UPSTREAM_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_secs)
+        .unwrap_or_else(|| Duration::from_secs(20));
+
+    let http = Client::builder()
+        .connect_timeout(upstream_timeout)
+        .timeout(upstream_timeout)
+        .build()
+        .expect("failed to build reqwest client");
 
     let state = AppState {
         positron_url,
         positron_key,
         max_retries,
-        http: Client::new(),
+        http,
         tool_regex: Regex::new(r"(?s)<tool_code>(.*?)</tool_code>").expect("regex"),
+        upstream_timeout,
     };
 
     let app = Router::new()
@@ -147,8 +164,11 @@ async fn main() {
         .expect("failed to bind port");
 
     println!(
-        "🚀 Proxy running on http://0.0.0.0:{} -> Forwarding to {}",
-        port, state.positron_url
+        "🚀 Proxy running on http://0.0.0.0:{} -> Forwarding to {} (timeout: {}s, max_retries: {})",
+        port,
+        state.positron_url,
+        state.upstream_timeout.as_secs(),
+        state.max_retries
     );
 
     axum::serve(listener, app).await.expect("server crashed");
@@ -409,7 +429,13 @@ async fn forward_and_handle(
         let repaired_str = match repair_json_snippet(raw_json) {
             Ok(clean) => clean,
             Err(e) => {
-                push_retry_messages(messages, content, format!("Output is not valid JSON: {e}"));
+                push_retry_messages(
+                    messages,
+                    content,
+                    format!(
+                        "SYSTEM ERROR: Output is not valid JSON: {e}. Respond ONLY with <tool_code>{{\"name\": \"...\", \"arguments\": {{}}}}</tool_code> using allowed tools."
+                    ),
+                );
                 req_body["messages"] =
                     serde_json::to_value(&messages).unwrap_or_else(|_| Value::Array(vec![]));
                 return Err(format!("Attempt {attempt} repair failed: {e}"));
@@ -421,7 +447,13 @@ async fn forward_and_handle(
         {
             Ok(v) => v,
             Err(e) => {
-                push_retry_messages(messages, content, format!("Output is not valid JSON: {e}"));
+                push_retry_messages(
+                    messages,
+                    content,
+                    format!(
+                        "SYSTEM ERROR: Output is not valid JSON: {e}. Respond ONLY with <tool_code>{{\"name\": \"...\", \"arguments\": {{}}}}</tool_code> using allowed tools."
+                    ),
+                );
                 req_body["messages"] =
                     serde_json::to_value(&messages).unwrap_or_else(|_| Value::Array(vec![]));
                 return Err(format!("Attempt {attempt} repair failed: {e}"));
@@ -446,7 +478,9 @@ async fn forward_and_handle(
             push_retry_messages(
                 messages,
                 content,
-                format!("SYSTEM ERROR: {error_msg}. Try again using <tool_code>."),
+                format!(
+                    "SYSTEM ERROR: {error_msg}. Respond ONLY with <tool_code>{{\"name\": \"...\", \"arguments\": {{}}}}</tool_code> using allowed tools."
+                ),
             );
             req_body["messages"] =
                 serde_json::to_value(&messages).unwrap_or_else(|_| Value::Array(vec![]));
@@ -454,9 +488,16 @@ async fn forward_and_handle(
         }
     }
 
-    // No tool tags found; return as-is.
-    let value = serde_json::to_value(&resp_json).map_err(|e| e.to_string())?;
-    Ok((StatusCode::OK, Json(value)))
+    // No tool tags found; force retry with explicit instruction.
+    push_retry_messages(
+        messages,
+        content,
+        "SYSTEM ERROR: Missing <tool_code> block. Respond ONLY with <tool_code>{\"name\": \"...\", \"arguments\": {}} </tool_code> using one allowed tool name and valid JSON.".into(),
+    );
+    req_body["messages"] = serde_json::to_value(&messages).unwrap_or_else(|_| Value::Array(vec![]));
+    Err(format!(
+        "Attempt {attempt} missing tool_code block; forcing retry"
+    ))
 }
 
 fn compile_validators(tools: &[Tool]) -> Result<HashMap<String, JSONSchema>, String> {
